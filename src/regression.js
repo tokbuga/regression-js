@@ -99,12 +99,67 @@ function round(number, precision) {
   return Math.round(number * factor) / factor;
 }
 
+function clone( data ) {
+    return JSON.parse(JSON.stringify(data));
+}
+
+function modify( data, axes ) {
+    return (data = clone(data)).map( (d,e) => {
+        data[e][1] = this.convert( data[e][1] );
+        return data[e];
+    }); 
+};
+
+const modifiers = {
+    raw : {
+        dataset : function ( data )  { return modify.call(this, data); },
+        convert : function ( value ) { return parseFloat(value); },
+        restore : function ( value ) { return value; }
+    },
+    
+    log : {
+        dataset : function ( data )  { return modify.call(this, data); },
+        convert : function ( value ) { return Math.log10(value); },
+        restore : function ( value ) { return Math.pow(10, value); },
+    },
+    
+    exp : {
+        dataset : function ( data )  { return modify.call(this, data); },
+        convert : function ( value ) { return Math.exp(value); },
+        restore : function () {}
+    },
+    
+    pow : {
+        dataset : function ( data )  { return modify.call(this, data); },
+        convert : function ( value ) { return Math.pow(value, 2); },
+        restore : function ( value ) { return Math.sqrt(value); }
+    }
+};
+
 /**
 * The set of all fitting methods
 *
 * @namespace
 */
 const methods = {
+  fit(data, options) {
+        let fits = [];
+
+        for (let method in this) {
+            if ( method == "fit" ) continue;
+            for (let modifier in modifiers)
+                fits.push({ 
+                    ...this[method](modifiers[modifier].dataset(data), options), 
+                    ...{modifier:modifier, method:method, data:data} 
+                });
+        }
+        
+        fit         = fits.sort( (a,b) => a.r2 > b.r2 && -1 || 1 )[0];
+        fit.apply   = (x) => modifiers[fit.modifier].restore(fit.predict(x)[1])
+        
+        return fit; 
+    },  
+  
   linear(data, options) {
     const sum = [0, 0, 0, 0, 0];
     let len = 0;
